@@ -30,6 +30,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import com.flowpowered.math.vector.Vector3f;
+
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.network.play.server.S07PacketRespawn;
@@ -46,7 +47,11 @@ import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.mod.entity.ISpongeEntity;
+import org.spongepowered.mod.util.SpongeHooks;
 
 import com.flowpowered.math.vector.Vector3d;
 import com.google.common.base.Optional;
@@ -80,6 +85,13 @@ public abstract class MixinEntity implements Entity, ISpongeEntity {
     protected abstract void shadow$setRotation(float yaw, float pitch);
     @Shadow
     public abstract void mountEntity(net.minecraft.entity.Entity entityIn);
+
+    @Inject(method = "moveEntity(DDD)V", at = @At("HEAD"), cancellable = true)
+    public void onMoveEntity(double x, double y, double z, CallbackInfo ci) {
+        if (SpongeHooks.checkEntitySpeed(((net.minecraft.entity.Entity)(Object)this), x, y, z)) {
+            ci.cancel();
+        }
+    }
 
     @Override
     public World getWorld() {

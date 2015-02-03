@@ -24,6 +24,7 @@
  */
 package org.spongepowered.mod.mixin.world;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -36,12 +37,13 @@ import com.google.common.base.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkArgument;
-
 import net.minecraft.network.Packet;
+import net.minecraft.profiler.Profiler;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.ServerConfigurationManager;
 import net.minecraft.world.WorldProvider;
 import net.minecraft.world.WorldServer;
+import net.minecraft.world.storage.ISaveHandler;
 import net.minecraft.world.storage.WorldInfo;
 
 import org.spongepowered.api.block.BlockLoc;
@@ -61,16 +63,21 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.mod.configuration.SpongeConfig;
 import org.spongepowered.mod.effect.particle.SpongeParticleEffect;
 import org.spongepowered.mod.effect.particle.SpongeParticleHelper;
+import org.spongepowered.mod.mixin.interfaces.IMixinWorld;
+import org.spongepowered.mod.util.SpongeHooks;
 import org.spongepowered.mod.util.VecHelper;
 import org.spongepowered.mod.wrapper.BlockWrapper;
 
 @NonnullByDefault
 @Mixin(net.minecraft.world.World.class)
-public abstract class MixinWorld implements World {
+public abstract class MixinWorld implements World, IMixinWorld {
 
     private boolean keepSpawnLoaded;
+    public SpongeConfig spongeConfig;
 
     @Shadow
     public WorldProvider provider;
@@ -83,6 +90,18 @@ public abstract class MixinWorld implements World {
 
     @Shadow(prefix = "shadow$")
     public abstract net.minecraft.world.border.WorldBorder shadow$getWorldBorder();
+
+    @Inject(method = "<init>", at = @At("RETURN"))
+    public void onConstructed(ISaveHandler saveHandlerIn, WorldInfo info, WorldProvider providerIn, Profiler profilerIn, boolean client, CallbackInfo ci) {
+        this.spongeConfig = new SpongeConfig(SpongeConfig.Type.WORLD, providerIn.getDimensionName() + File.separator + (providerIn.getDimensionId() == 0 ? "DIM0" : providerIn.getSaveFolder()) + File.separator + "worldsettings.cfg");
+    }
+
+    @Inject(method = "getCollidingBoundingBoxes(Lnet/minecraft/entity/Entity;Lnet/minecraft/util/AxisAlignedBB;)Ljava/util/List;", at = @At("HEAD"))
+    public void onGetCollidingBoundingBoxes(net.minecraft.entity.Entity entity, net.minecraft.util.AxisAlignedBB axis, CallbackInfoReturnable<List> cir) {
+        if (SpongeHooks.checkBoundingBoxSize(entity, axis)) {
+            cir.setReturnValue(new ArrayList());// Removing misbehaved living entities
+        }
+    }
 
     @Override
     public UUID getUniqueID() {
@@ -259,5 +278,10 @@ public abstract class MixinWorld implements World {
     @Override
     public void setKeepSpawnLoaded(boolean keepLoaded) {
         this.keepSpawnLoaded = keepLoaded;
+    }
+
+    @Override
+    public SpongeConfig getWorldConfig() {
+        return this.spongeConfig;
     }
 }
